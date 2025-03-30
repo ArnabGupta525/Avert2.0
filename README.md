@@ -51,7 +51,7 @@ cd avert-2.0
 npm install
 
 # Start the development server
-npm start
+npx expo start
 ```
 
 ## Environment Setup
@@ -114,16 +114,6 @@ Manage your emergency contacts:
 ![Map View](https://via.placeholder.com/250x500)
 ![SOS Feature](https://via.placeholder.com/250x500)
 
-## Contributing
-
-We welcome contributions to Avert 2.0! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -134,8 +124,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Firebase** for backend services
 - **React Native Maps** for map functionality
 - **Lucide Icons** for the beautiful icon set
-- All contributors who have helped shape this project
 
 ## Contact
 
-Project Link: [https://github.com/yourusername/avert-2.0](https://github.com/yourusername/avert-2.0)
+Project Link: [https://github.com/ArnabGupta525/avert-2.0](https://github.com/ArnabGupta525/avert-2.0 
