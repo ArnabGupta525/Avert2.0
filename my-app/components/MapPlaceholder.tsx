@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { getColors } from '@/constants/colors';
 import { MapPin } from 'lucide-react-native';
 import MapView, { PROVIDER_DEFAULT, UrlTile, Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useDisasterStore } from '@/store/disaster-store';
+import { useRouter } from 'expo-router';
 
 interface MapPlaceholderProps {
   title: string;
@@ -28,6 +29,7 @@ export default function MapPlaceholder({
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
+  const router = useRouter();
 
   useEffect(() => {
     // If we already have user location in the store, use it
@@ -73,8 +75,16 @@ export default function MapPlaceholder({
     getLocation();
   }, [userLocation]);
   
+  const handleMapPress = () => {
+    router.push('/map');
+  };
+  
   return (
-    <View style={[styles.container, { backgroundColor: colors.card }]}>
+    <TouchableOpacity 
+      style={[styles.container, { backgroundColor: colors.card }]} 
+      onPress={handleMapPress}
+      activeOpacity={0.8}
+    >
       <View style={[styles.mapContent, { height }]}>
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -113,7 +123,7 @@ export default function MapPlaceholder({
         <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

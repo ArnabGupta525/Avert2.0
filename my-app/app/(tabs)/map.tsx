@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, Platform, Alert } from 'react-native';
 import MapView, {Heatmap, PROVIDER_DEFAULT, UrlTile, Marker } from 'react-native-maps';
 import { getColors } from '@/constants/colors';
@@ -26,80 +26,153 @@ interface HeatMapPoint {
   weight: number;
 }
 
+interface DisasterTweet {
+  disaster_confidence: number;
+}
+
+interface CommunityReport {
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
+  verified: boolean;
+  upvotes: number;
+}
+
 export default function MapScreen() {
-  const { userLocation, setUserLocation } = useDisasterStore();
+  const { 
+    userLocation, 
+    setUserLocation, 
+    disasterTweets, 
+    communityReports,
+    fetchDisasterTweets,
+    fetchCommunityReports 
+  } = useDisasterStore();
   const colors = getColors();
   const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [heatmapData, setHeatmapData] = useState<HeatMapPoint[]>([]);
+  
+  // Create a memoized initial region based on user location
+  const initialRegion = useMemo(() => {
+    if (userLocation.latitude && userLocation.longitude) {
+      return {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      };
+    }
+    return {
+      latitude: 40.7128, // Default to NYC
+      longitude: -74.0060,
+      latitudeDelta: 0.0922,
+      longitudeDelta: 0.0421,
+    };
+  }, [userLocation.latitude, userLocation.longitude]);
 
+  // Use the location that was already initialized at app startup
   useEffect(() => {
-    (async () => {
+    const initializeMap = async () => {
       setLoading(true);
       
-      // Request location permissions
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        setErrorMsg('Permission to access location was denied');
-        // Use fallback configuration if permission denied
-        fetchMapConfig();
+      try {
+        // If we already have location from app startup, use it immediately
+        if (userLocation.latitude && userLocation.longitude) {
+          console.log("Using pre-initialized location for map");
+          await fetchMapConfig(userLocation.latitude, userLocation.longitude);
+          return;
+        }
+        
+        // Otherwise, request location permissions and get location
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        
+        if (status !== 'granted') {
+          setErrorMsg('Permission to access location was denied');
+          // Use fallback configuration if permission denied
+          fetchMapConfig();
+          return;
+        }
+        
+        try {
+          // Get current location with high accuracy but with timeout
+          let location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+            maximumAge: 10000, // Accept a location that is up to 10 seconds old
+            timeout: 5000 // Wait only 5 seconds to avoid long delays
+          });
+          
+          console.log("Got current location:", location.coords);
+          
+          // Immediately update user location with coordinates
+          if (setUserLocation) {
+            setUserLocation({
+              ...userLocation,
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            });
+          }
+          
+          // Fetch map config with user's location
+          fetchMapConfig(location.coords.latitude, location.coords.longitude);
+        } catch (error) {
+          console.error('Error getting location:', error);
+          setErrorMsg('Failed to get location');
+          fetchMapConfig();
+        }
+      } catch (error) {
+        console.error('Error initializing map:', error);
+        setLoading(false);
+      }
+    };
+
+    initializeMap();
+    
+    // Prefetch data in parallel
+    fetchDisasterTweets();
+    fetchCommunityReports();
+  }, []);
+
+  // Generate heatmap when data changes
+  useEffect(() => {
+    if (mapConfig && (disasterTweets.length > 0 || communityReports.length > 0)) {
+      generateHeatmapFromData();
+    }
+  }, [disasterTweets, communityReports, mapConfig]);
+
+  // Memoize the fetchMapConfig function to prevent unnecessary re-renders
+  const fetchMapConfig = useCallback(async (latitude?: number, longitude?: number) => {
+    try {
+      // If we already have a map config and the same coordinates, don't fetch again
+      if (mapConfig && 
+          mapConfig.initialRegion.latitude === latitude && 
+          mapConfig.initialRegion.longitude === longitude) {
+        setLoading(false);
         return;
       }
       
-      try {
-        // Get current location
-        let location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        
-        // Fetch map config with user's location
-        fetchMapConfig(location.coords.latitude, location.coords.longitude);
-      } catch (error) {
-        console.error('Error getting location:', error);
-        setErrorMsg('Failed to get location');
-        fetchMapConfig();
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    console.log("Current user location state:", userLocation);
-  }, [userLocation]);
-
-  useEffect(() => {
-    // Fetch heatmap data after map config is loaded
-    if (mapConfig) {
-      fetchHeatmapData();
-    }
-  }, [mapConfig]);
-
-  const fetchMapConfig = async (latitude?: number, longitude?: number) => {
-    try {
-      let url = `${FLASK_SERVER_URL}/map/config`; // Replace with your actual IP address
+      let url = `${FLASK_SERVER_URL}/map/config`;
       
       // Add location parameters if available
       if (latitude !== undefined && longitude !== undefined) {
         url += `?lat=${latitude}&lng=${longitude}`;
       }
       
-      const response = await axios.get(url);
-      console.log("API Response:", response.data);
-      console.log("Location name from API:", response.data.locationName);
+      const response = await axios.get(url, { 
+        timeout: 5000 // Add timeout to prevent long waits
+      });
       
       setMapConfig(response.data);
       
       // Update user location in store with the fetched location name
       if (setUserLocation && latitude !== undefined && longitude !== undefined) {
-        console.log("Updating user location with name:", response.data.locationName || 'Unknown Location');
         setUserLocation({
           ...userLocation,
           name: response.data.locationName || 'Unknown Location',
           latitude: latitude,
           longitude: longitude,
         });
-        console.log("Updated user location:", userLocation);
       }
     } catch (error) {
       console.error('Failed to fetch map configuration:', error);
@@ -107,8 +180,8 @@ export default function MapScreen() {
       setMapConfig({
         tileServer: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         initialRegion: {
-          latitude: latitude || 40.7128,
-          longitude: longitude || -74.0060,
+          latitude: latitude || initialRegion.latitude,
+          longitude: longitude || initialRegion.longitude,
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421,
         }
@@ -125,47 +198,61 @@ export default function MapScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [mapConfig, initialRegion, setUserLocation, userLocation]);
 
-  const fetchHeatmapData = async () => {
-    // This would normally fetch from an API
-    // For demonstration, let's create sample heatmap data around the user's location
-    try {
-      // You should replace this with your actual endpoint
-      // const response = await axios.get('http://192.168.221.88:5500/map/heatmap');
-      // setHeatmapData(response.data);
+  // Memoize the generateHeatmapFromData function
+  const generateHeatmapFromData = useCallback(() => {
+    if (!mapConfig) return;
 
-      // For demo purposes, generate dummy heatmap data points
-      if (mapConfig && mapConfig.initialRegion) {
-        const { latitude, longitude, latitudeDelta, longitudeDelta } = mapConfig.initialRegion;
-        const points: HeatMapPoint[] = [];
+    const points: HeatMapPoint[] = [];
+    
+    // Process disaster tweets
+    disasterTweets.forEach(tweet => {
+      // Check if the tweet has location data
+      // For now, we'll use a random offset from the center for demonstration
+      // In a real implementation, you'd extract location data from the tweet
+      const { latitude, longitude } = mapConfig.initialRegion;
+      const latOffset = (Math.random() - 0.5) * mapConfig.initialRegion.latitudeDelta;
+      const lngOffset = (Math.random() - 0.5) * mapConfig.initialRegion.longitudeDelta;
+      
+      points.push({
+        latitude: latitude + latOffset,
+        longitude: longitude + lngOffset,
+        // Use the disaster confidence as weight (0-100)
+        weight: tweet.disaster_confidence * 100
+      });
+    });
+    
+    // Process community reports
+    communityReports.forEach(report => {
+      // Community reports should have coordinates
+      if (report.coordinates && report.coordinates.latitude && report.coordinates.longitude) {
+        // Calculate weight based on upvotes and verification status
+        let weight = 50; // Base weight
         
-        // Generate a grid of points with varying weights
-        for (let lat = latitude - latitudeDelta; lat <= latitude + latitudeDelta; lat += latitudeDelta / 10) {
-          for (let lng = longitude - longitudeDelta; lng <= longitude + longitudeDelta; lng += longitudeDelta / 10) {
-            // Generate a weight between 0 and 1
-            // This is where you'd apply your risk calculation logic
-            const distanceFromCenter = Math.sqrt(
-              Math.pow(lat - latitude, 2) + Math.pow(lng - longitude, 2)
-            );
-            
-            // Higher weight (risk) for points closer to the center
-            const weight = 1 - Math.min(1, distanceFromCenter / Math.max(latitudeDelta, longitudeDelta));
-            
-            points.push({
-              latitude: lat,
-              longitude: lng,
-              weight: weight * 100 // Scale to 0-100 for better visualization
-            });
-          }
+        // Increase weight for verified reports
+        if (report.verified) {
+          weight += 25;
         }
         
-        setHeatmapData(points);
+        // Increase weight based on upvotes (max +25)
+        weight += Math.min(25, report.upvotes * 5);
+        
+        points.push({
+          latitude: report.coordinates.latitude,
+          longitude: report.coordinates.longitude,
+          weight: weight
+        });
       }
-    } catch (error) {
-      console.error('Failed to fetch heatmap data:', error);
+    });
+    
+    // Only show a message if no real data is available
+    if (points.length === 0) {
+      console.log("No disaster data available for heatmap");
     }
-  };
+    
+    setHeatmapData(points);
+  }, [mapConfig, disasterTweets, communityReports]);
 
   if (loading) {
     return (
@@ -194,11 +281,15 @@ export default function MapScreen() {
             style={styles.map}
             provider={PROVIDER_DEFAULT}
             initialRegion={mapConfig.initialRegion}
+            maxZoomLevel={19}
+            minZoomLevel={10}
+            rotateEnabled={false}
           >
             <UrlTile
               urlTemplate={mapConfig.tileServer}
               maximumZ={19}
               flipY={false}
+              zIndex={-1}
             />
             
             {/* Heat Map Layer */}
@@ -227,7 +318,7 @@ export default function MapScreen() {
                   longitude: userLocation.longitude,
                 }}
                 title="Your Location"
-                description={userLocation.name}
+                description="Your current location"
               />
             )}
           </MapView>
@@ -256,13 +347,15 @@ export default function MapScreen() {
         </View>
       </View>
       
-      <View style={styles.infoContainer}>
-        <LocationCard 
-          name={userLocation.name}
-          riskLevel={userLocation.riskLevel}
-          evacuationZone={userLocation.evacuationZone}
-        />
-      </View>
+      {userLocation.latitude && userLocation.longitude && (
+        <View style={styles.infoContainer}>
+          <LocationCard 
+            name={userLocation.name || "Current Location"}
+            riskLevel={heatmapData.length > 0 ? "Based on real-time data" : "No data available"}
+            evacuationZone={userLocation.evacuationZone || "Unknown"}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }

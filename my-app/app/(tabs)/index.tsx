@@ -5,7 +5,6 @@ import { useDisasterStore } from '@/store/disaster-store';
 import StatusCard from '@/components/StatusCard';
 import { WeatherGrid } from '@/components/WeatherCard';
 import LocationCard from '@/components/LocationCard';
-import ShelterList from '@/components/ShelterList';
 import ChecklistCard from '@/components/ChecklistCard';
 import MapPlaceholder from '@/components/MapPlaceholder';
 import { useRouter } from 'expo-router';
@@ -402,7 +401,6 @@ export default function DashboardScreen() {
             title="Risk Heatmap" 
             subtitle="Tap to view detailed risk assessment"
           />
-          <ShelterList shelters={[]} />
         </View>
 
         <View style={styles.section}>

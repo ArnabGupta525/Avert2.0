@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { getColors } from '@/constants/colors';
-import { Home, AlertTriangle, Phone, Map, FileText, Bell } from 'lucide-react-native';
+import { Home, AlertTriangle, Phone, Map, Bell } from 'lucide-react-native';
 import ThemeToggle from '@/components/ThemeToggle';
 import SOSButton from '@/components/SOSButton';
 import MedicalInfoButton from '@/components/MedicalInfoButton';
@@ -37,10 +37,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="alerts"
+        name="map"
         options={{
-          title: "Alerts",
-          tabBarIcon: ({ color }) => <AlertTriangle size={24} color={color} />,
+          title: "Map",
+          tabBarIcon: ({ color }) => <Map size={24} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -61,10 +61,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="map"
+        name="alerts"
         options={{
-          title: "Map",
-          tabBarIcon: ({ color }) => <Map size={24} color={color} />,
+          title: "Alerts",
+          tabBarIcon: ({ color }) => <AlertTriangle size={24} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -72,13 +72,6 @@ export default function TabLayout() {
         options={{
           title: "Contacts",
           tabBarIcon: ({ color }) => <Phone size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="resources"
-        options={{
-          title: "Resources",
-          tabBarIcon: ({ color }) => <FileText size={24} color={color} />,
         }}
       />
     </Tabs>
