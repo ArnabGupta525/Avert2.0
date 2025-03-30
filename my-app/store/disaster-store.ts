@@ -3,16 +3,17 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { collection, query, orderBy, limit, getDocs, Timestamp, where, addDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { 
-  emergencyStatus, 
-  weatherData, 
-  userLocation, 
-  emergencyContacts, 
+import {
+  emergencyStatus,
+  weatherData,
+  userLocation,
+  emergencyContacts,
   checklistItems,
   governmentDirectives,
   communityReports
 } from '@/constants/mock-data';
 import { calculateDistance } from '@/utils/location';
+import * as Location from 'expo-location';
 
 interface UserLocation {
   name: string;
@@ -106,7 +107,7 @@ interface DisasterState {
 
   sosActive: boolean;
   sosStartTime: string | null;
-  
+
   // Actions
   toggleChecklistItem: (id: string) => void;
   addEmergencyContact: (contact: { name: string; number: string; category: string }) => void;
@@ -164,11 +165,11 @@ export const useDisasterStore = create<DisasterState>()(
         try {
           console.log('Starting tweet fetch...');
           const tweetsRef = collection(db, 'tweets');
-          
+
           // Create a query for tweets from the last 24 hours
           const twentyFourHoursAgo = new Date();
           twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
-          
+
           const q = query(
             tweetsRef,
             orderBy('created_at', 'desc'),
@@ -180,7 +181,7 @@ export const useDisasterStore = create<DisasterState>()(
           console.log(`Found ${querySnapshot.size} documents`);
 
           const tweets: Tweet[] = [];
-          
+
           querySnapshot.forEach(doc => {
             try {
               const data = doc.data();
@@ -237,7 +238,7 @@ export const useDisasterStore = create<DisasterState>()(
           }
 
           // Sort tweets by date
-          const sortedTweets = tweets.sort((a, b) => 
+          const sortedTweets = tweets.sort((a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
           );
 
@@ -272,27 +273,27 @@ export const useDisasterStore = create<DisasterState>()(
             }
           ];
 
-          set({ 
-            error: 'Failed to fetch live disaster tweets - Using backup data', 
+          set({
+            error: 'Failed to fetch live disaster tweets - Using backup data',
             isLoading: false,
             disasterTweets: mockTweets
           });
         }
       },
-      
-      toggleChecklistItem: (id: string) => 
+
+      toggleChecklistItem: (id: string) =>
         set((state) => ({
-          checklistItems: state.checklistItems.map(item => 
+          checklistItems: state.checklistItems.map(item =>
             item.id === id ? { ...item, completed: !item.completed } : item
           )
         })),
-      
-      addEmergencyContact: (contact) => 
+
+      addEmergencyContact: (contact) =>
         set((state) => ({
           emergencyContacts: [
-            ...state.emergencyContacts, 
-            { 
-              id: Date.now().toString(), 
+            ...state.emergencyContacts,
+            {
+              id: Date.now().toString(),
               ...contact,
               location: {
                 latitude: 0,
@@ -302,32 +303,32 @@ export const useDisasterStore = create<DisasterState>()(
             }
           ]
         })),
-      
-      removeEmergencyContact: (id: string) => 
+
+      removeEmergencyContact: (id: string) =>
         set((state) => ({
           emergencyContacts: state.emergencyContacts.filter(contact => contact.id !== id)
         })),
-      
-      updateUserLocation: (location) => 
+
+      updateUserLocation: (location) =>
         set((state) => ({
           userLocation: {
             ...state.userLocation,
             ...location,
           }
         })),
-        
+
       upvoteReport: (id: string) =>
         set((state) => ({
           communityReports: state.communityReports.map(report =>
             report.id === id ? { ...report, upvotes: report.upvotes + 1 } : report
           )
         })),
-        
+
       addCommunityReport: async (report) => {
         try {
           // Create a reference to the community_reports collection
           const reportsRef = collection(db, 'community_reports');
-          
+
           // Prepare the report data with timestamp
           const reportData = {
             ...report,
@@ -336,11 +337,11 @@ export const useDisasterStore = create<DisasterState>()(
             verified: false,
             createdAt: Timestamp.now()
           };
-          
+
           // Add the document to Firestore
           const docRef = await addDoc(reportsRef, reportData);
           console.log("Community report added with ID:", docRef.id);
-          
+
           // Update the local state
           set((state) => ({
             communityReports: [
@@ -351,31 +352,31 @@ export const useDisasterStore = create<DisasterState>()(
               ...state.communityReports,
             ]
           }));
-          
+
           return docRef.id;
         } catch (error) {
           console.error("Error adding community report:", error);
           throw error;
         }
       },
-      
+
       fetchCommunityReports: async () => {
         try {
           set(state => ({ isLoading: true, error: null }));
-          
+
           // Create a reference to the community_reports collection
           const reportsRef = collection(db, 'community_reports');
-          
+
           // Create a query to get the reports sorted by creation time (newest first)
           const q = query(
             reportsRef,
             orderBy('createdAt', 'desc'),
             limit(50) // Limit to the 50 most recent reports
           );
-          
+
           // Execute the query
           const querySnapshot = await getDocs(q);
-          
+
           // Map the documents to our report format
           const reports = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -393,37 +394,83 @@ export const useDisasterStore = create<DisasterState>()(
               images: data.images || [],
             };
           });
-          
+
           // Update the state with the fetched reports
-          set(state => ({ 
+          set(state => ({
             communityReports: reports,
-            isLoading: false 
+            isLoading: false
           }));
-          
+
           console.log(`Fetched ${reports.length} community reports`);
           return reports;
         } catch (error) {
           console.error("Error fetching community reports:", error);
-          set(state => ({ 
+          set(state => ({
             error: "Failed to fetch community reports. Please try again.",
-            isLoading: false 
+            isLoading: false
           }));
           throw error;
         }
       },
-        
-      activateSOS: () =>
-        set({
-          sosActive: true,
-          sosStartTime: new Date().toISOString()
-        }),
-        
+
+      // Update the activateSOS function in the disaster-store.ts file
+      activateSOS: async () => {
+        try {
+          // Get location
+          let location = null;
+          const { status } = await Location.requestForegroundPermissionsAsync();
+
+          if (status === 'granted') {
+            const currentLocation = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Highest,
+              maximumAge: 10000,
+              timeout: 10000,
+            });
+            location = {
+              latitude: currentLocation.coords.latitude,
+              longitude: currentLocation.coords.longitude,
+            };
+          }
+
+          // Get medical info
+          let medicalInfo = null;
+          try {
+            const savedInfo = await AsyncStorage.getItem('medical-info');
+            if (savedInfo) {
+              medicalInfo = JSON.parse(savedInfo);
+            }
+          } catch (error) {
+            console.error('Failed to load medical info:', error);
+          }
+
+          // Send to Firebase and update state in parallel
+          const firebasePromise = addDoc(collection(db, 'sos-alerts'), {
+            timestamp: new Date(),
+            location,
+            medicalInfo,
+            active: true,
+          });
+          set({
+            sosActive: true,
+            sosStartTime: new Date().toISOString()
+          });
+          await firebasePromise;
+        } catch (error) {
+          console.error('Error activating SOS:', error);
+          // Still activate SOS locally even if Firebase fails
+          set({
+            sosActive: true,
+            sosStartTime: new Date().toISOString()
+          });
+        }
+      },
+
       deactivateSOS: () =>
         set({
           sosActive: false,
           sosStartTime: null
         }),
-      
+
       setUserLocation: (location) => set((state) => ({
         userLocation: {
           ...state.userLocation,
@@ -436,11 +483,11 @@ export const useDisasterStore = create<DisasterState>()(
           console.log('Starting to fetch contacts...');
           const contactsRef = collection(db, 'emergency_contacts');
           console.log('Collection reference created');
-          
+
           try {
             const querySnapshot = await getDocs(contactsRef);
             console.log('Query executed, documents found:', querySnapshot.size);
-            
+
             // Get all contacts and calculate distances
             const contacts = querySnapshot.docs.map(doc => {
               const data = doc.data();
@@ -450,7 +497,7 @@ export const useDisasterStore = create<DisasterState>()(
                 data.location.latitude,
                 data.location.longitude
               );
-              
+
               return {
                 id: doc.id,
                 ...data,

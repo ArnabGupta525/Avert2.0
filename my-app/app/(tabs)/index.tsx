@@ -44,6 +44,10 @@ export default function DashboardScreen() {
         await fetchDisasterTweets();
         console.log('Tweets fetched successfully');
         
+        // Fetch community reports
+        await fetchCommunityReports();
+        console.log('Community reports fetched successfully');
+        
         // Request location permissions and fetch location data
         await fetchLocationData();
       } catch (error) {
@@ -57,6 +61,7 @@ export default function DashboardScreen() {
     console.log('Current state:', {
       tweetsCount: disasterTweets.length,
       tweets: disasterTweets,
+      communityReportsCount: communityReports.length,
       isLoading,
       error
     });

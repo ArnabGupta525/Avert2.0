@@ -5,6 +5,8 @@ import { getColors } from '@/constants/colors';
 import { Home, AlertTriangle, Phone, Map, FileText, Bell } from 'lucide-react-native';
 import ThemeToggle from '@/components/ThemeToggle';
 import SOSButton from '@/components/SOSButton';
+import MedicalInfoButton from '@/components/MedicalInfoButton';
+
 
 export default function TabLayout() {
   const colors = getColors();
@@ -28,6 +30,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Home size={24} color={color} />,
           headerRight: () => (
             <View style={styles.headerRight}>
+              <MedicalInfoButton />
               <ThemeToggle />
             </View>
           ),
@@ -99,6 +102,7 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     marginRight: 16,
+    flexDirection: 'row',
   },
   sosButtonContainer: {
     position: 'relative',

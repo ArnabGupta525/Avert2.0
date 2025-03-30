@@ -64,6 +64,8 @@ export default function SOSButton() {
   
   const handleSOSPress = () => {
     if (Platform.OS !== 'web') {
+      // Use stronger haptics
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
     setConfirmModalVisible(true);
@@ -74,12 +76,20 @@ export default function SOSButton() {
     setConfirmModalVisible(false);
   };
   
-  const handleConfirmSOS = () => {
-    setConfirmModalVisible(false);
-    activateSOS();
+  const handleConfirmSOS = async () => {
+    setActiveModalVisible(true); // Update UI immediately
+    
+    // Trigger stronger haptic feedback
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
+    
+    // Activate SOS in the store in the background
+    activateSOS();
+    
+    setConfirmModalVisible(false);
   };
   
   const handleCancelSOS = () => {
