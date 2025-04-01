@@ -42,7 +42,7 @@ Avert 2.0 is a comprehensive Real-time disaster aggregation and emergency respon
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/avert-2.0.git
+git clone https://github.com/ArnabGupta525/avert-2.0.git
 
 # Navigate to the project directory
 cd avert-2.0
