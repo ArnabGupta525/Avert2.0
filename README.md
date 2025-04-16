@@ -127,4 +127,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Contact
 
-Project Link: [https://github.com/ArnabGupta525/Avert-2.0]
+Project Link: [https://github.com/ArnabGupta525/Avert2.0]
